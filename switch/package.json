@@ -1,0 +1,25 @@
+{
+    "name": "edgar",
+    "private": true,
+    "type": "module",
+    "nacp": {
+        "id": "01004ed6a7e10000",
+        "title": "Edgar!",
+        "author": "Lars Heidkaemper",
+        "version": "0.1.0"
+    },
+    "scripts": {
+        "build": "npm run typecheck && vite build",
+        "nro": "npm run build && nxjs-nro --fat && mkdir -p dist && mv edgar.nro dist/",
+        "nro:slim": "npm run build && nxjs-nro && mkdir -p dist && mv edgar.nro dist/",
+        "send": "npm run nro && cd dist && nxlink -s edgar.nro",
+        "send:slim": "npm run nro:slim && cd dist && nxlink -s edgar.nro",
+        "typecheck": "tsc --noEmit",
+        "check": "npm run typecheck"
+    },
+    "devDependencies": {
+        "@nx.js/nro": "^1.0.0-beta.6",
+        "typescript": "^5.6.3",
+        "vite": "^8.2.2"
+    }
+}

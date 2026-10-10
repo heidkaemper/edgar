@@ -1,0 +1,25 @@
+# package managers
+/node_modules
+npm-debug.log
+yarn-error.log
+yarn.lock
+
+# static assets
+/dist
+
+# agents
+/AGENTS.md
+/CLAUDE.md
+/.claude
+/.github/*
+!/.github/workflows/
+/.vscode
+/.mcp.json
+
+# misc
+/.fleet
+/.idea
+*.log
+.DS_Store
+.env
+.nvmrc
