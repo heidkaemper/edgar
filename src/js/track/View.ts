@@ -22,6 +22,12 @@ export interface View {
     feetY: number
     /** Camera height above the road, in world units. */
     camY: number
+    /**
+     * Rows at the top and bottom edge that the host keeps clear for its own
+     * bars: the picture runs under them, the HUD and the hints do not.
+     */
+    padTop: number
+    padBottom: number
     /** Bumped on every change, so caches know when to rebuild. */
     version: number
 }
@@ -33,6 +39,8 @@ export const view: View = {
     horizon: LANDSCAPE_HORIZON,
     feetY: LANDSCAPE_FEET,
     camY: (LANDSCAPE_FEET - LANDSCAPE_HORIZON) / PLAYER_SCALE,
+    padTop: 0,
+    padBottom: 0,
     version: 0,
 }
 

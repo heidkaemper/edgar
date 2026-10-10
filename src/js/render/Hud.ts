@@ -33,22 +33,23 @@ export class Hud {
 
     hitsPause(x: number, y: number): boolean {
         const left = view.w / 2 - PAUSE_W / 2
-        return x >= left - 8 && x <= left + PAUSE_W + 8 && y <= MARGIN + PAUSE_H + 10
+        return x >= left - 8 && x <= left + PAUSE_W + 8 && y <= view.padTop + MARGIN + PAUSE_H + 10
     }
 
     private drawDistance(ctx: CanvasRenderingContext2D, metres: number): void {
-        drawText(ctx, `${metres} M`, MARGIN + 2, MARGIN + 4, { color: PAL.hud, outline: PAL.ink, scale: 2 })
+        drawText(ctx, `${metres} M`, MARGIN + 2, view.padTop + MARGIN + 4, { color: PAL.hud, outline: PAL.ink, scale: 2 })
     }
 
     private drawPause(ctx: CanvasRenderingContext2D): void {
         const left = Math.round(view.w / 2 - PAUSE_W / 2)
+        const top = view.padTop + MARGIN
         ctx.globalAlpha = 0.6
         ctx.fillStyle = PAL.hudDim
-        ctx.fillRect(left, MARGIN, PAUSE_W, PAUSE_H)
+        ctx.fillRect(left, top, PAUSE_W, PAUSE_H)
         ctx.globalAlpha = 1
         ctx.fillStyle = PAL.hud
-        ctx.fillRect(left + 8, MARGIN + 6, 3, 12)
-        ctx.fillRect(left + 15, MARGIN + 6, 3, 12)
+        ctx.fillRect(left + 8, top + 6, 3, 12)
+        ctx.fillRect(left + 15, top + 6, 3, 12)
     }
 
     /** The jar fills with acorns; the ability it is about to give sits beside it. */
@@ -57,7 +58,7 @@ export class Hud {
         const w = jar.width * JAR_SCALE
         const h = jar.height * JAR_SCALE
         const x = view.w - MARGIN - w
-        const y = MARGIN
+        const y = view.padTop + MARGIN
 
         // Inside of the glass, in jar pixels, outline included.
         const insideTop = 5
@@ -118,7 +119,7 @@ export class Hud {
     private drawToast(ctx: CanvasRenderingContext2D, game: Game): void {
         const rise = Math.max(0, 80 - game.toastTimer - 60)
         const y = Math.round(view.horizon * 0.55) - rise
-        drawText(ctx, game.toast, view.w / 2, Math.max(44, y), {
+        drawText(ctx, game.toast, view.w / 2, Math.max(view.padTop + 44, y), {
             color: PAL.helmet,
             outline: PAL.ink,
             align: 'center',

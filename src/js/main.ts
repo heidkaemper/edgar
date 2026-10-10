@@ -10,6 +10,7 @@ import { layoutView, view } from './track/View'
 
 const stage = document.getElementById('stage') as HTMLDivElement
 const canvas = document.getElementById('game') as HTMLCanvasElement
+const insets = document.getElementById('insets') as HTMLDivElement
 const ctx = canvas.getContext('2d', { alpha: false })!
 
 let scale = 1
@@ -67,6 +68,10 @@ function resize(): void {
     ctx.imageSmoothingEnabled = false
     canvas.style.width = `${Math.round(view.w * scale)}px`
     canvas.style.height = `${Math.round(view.h * scale)}px`
+
+    const { paddingTop, paddingBottom } = getComputedStyle(insets)
+    view.padTop = Math.ceil(parseFloat(paddingTop) / scale)
+    view.padBottom = Math.ceil(parseFloat(paddingBottom) / scale)
     if (import.meta.env.DEV) {
         document.title = `Edgar ${view.w}x${view.h} @${scale.toFixed(2)} stage ${stage.clientWidth}x${stage.clientHeight}`
     }
@@ -151,7 +156,7 @@ const loop = new Loop(
             fpsWorst = 0
             fpsSecond = now
         }
-        drawText(ctx, fpsText, 6, view.h - 12, { color: '#ffffff', outline: '#000000' })
+        drawText(ctx, fpsText, 6, view.h - view.padBottom - 12, { color: '#ffffff', outline: '#000000' })
     },
 )
 loop.start()

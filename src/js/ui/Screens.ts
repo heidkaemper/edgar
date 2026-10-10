@@ -24,19 +24,19 @@ export class Screens {
 
     private title(ctx: CanvasRenderingContext2D, game: Game, hint: string): void {
         const cx = view.w / 2
-        const top = Math.max(26, Math.round(view.horizon * 0.22))
+        const top = Math.max(view.padTop + 26, Math.round(view.horizon * 0.22))
         drawText(ctx, 'EDGAR!', cx, top, { color: PAL.pigLight, outline: PAL.ink, shadow: PAL.pigDeep, align: 'center', scale: 6 })
 
         const prompt = view.feetY + 18
         if (Math.floor(game.frame / 30) % 2 === 0) {
-            drawText(ctx, 'TIPPEN ZUM STARTEN', cx, Math.min(view.h - 34, prompt), {
+            drawText(ctx, 'TIPPEN ZUM STARTEN', cx, Math.min(view.h - view.padBottom - 34, prompt), {
                 color: PAL.hud,
                 outline: PAL.ink,
                 align: 'center',
                 scale: 2,
             })
         }
-        drawText(ctx, hint, cx, view.h - 14, { color: PAL.hud, outline: PAL.ink, align: 'center' })
+        drawText(ctx, hint, cx, view.h - view.padBottom - 14, { color: PAL.hud, outline: PAL.ink, align: 'center' })
         if (game.best > 0) {
             drawText(ctx, `REKORD ${game.best} M`, cx, top + 60, { color: PAL.helmet, outline: PAL.ink, align: 'center', scale: 2 })
         }
@@ -54,7 +54,7 @@ export class Screens {
         const panelW = Math.min(view.w - 24, 320)
         const panelH = 150
         const x = Math.round(cx - panelW / 2)
-        const y = Math.round(Math.max(12, view.horizon * 0.5 - 40))
+        const y = Math.round(Math.max(view.padTop + 12, view.horizon * 0.5 - 40))
 
         ctx.globalAlpha = 0.82
         ctx.fillStyle = PAL.hudDim

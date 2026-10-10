@@ -26,12 +26,12 @@ body {
 }
 
 /* Inset rather than padded, so the stage measures exactly the space the game
-   may use. Keeps clear of the notch and the home indicator. */
+   may use. Keeps clear of the notch; the home indicator is left to #insets. */
 #stage {
     position: fixed;
     top: env(safe-area-inset-top);
     right: env(safe-area-inset-right);
-    bottom: env(safe-area-inset-bottom);
+    bottom: 0;
     left: env(safe-area-inset-left);
     display: flex;
     align-items: center;
@@ -42,6 +42,23 @@ body {
    stillness rather than at once, so the window never looks broken. */
 #stage.resting {
     cursor: none;
+}
+
+/* Never shown: its padding is read as the edges the HUD keeps clear of while
+   the picture runs under them. */
+#insets {
+    position: fixed;
+    visibility: hidden;
+    pointer-events: none;
+    padding-top: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* On a home screen iOS blurs the top of the page below its status bar. */
+@media (display-mode: standalone) and (orientation: portrait) {
+    #insets {
+        padding-top: 28px;
+    }
 }
 
 #game {
