@@ -7,10 +7,14 @@ export type Action = 'left' | 'right' | 'jump' | 'duck' | 'pause' | 'confirm'
 
 export interface Controls {
     keys: Record<string, Action>
+    /** Which half of a shared keyboard a key is, by the name the screen gives it; a key left out is no one's. */
+    groups: Record<string, string>
     /** Indices in the standard gamepad mapping, one list per action. */
     pad: Record<Action, number[]>
     /** One line on the title screen, in the host's own words. */
     hint: string
+    /** A pad is called this, followed by its number. */
+    padName: string
 }
 
 /** Keyboard first, an Xbox pad on the same roles: A jumps, B ducks. */
@@ -29,6 +33,16 @@ export const CONTROLS: Controls = {
         KeyP: 'pause',
         Enter: 'confirm',
     },
+    groups: {
+        KeyA: 'WASD',
+        KeyD: 'WASD',
+        KeyW: 'WASD',
+        KeyS: 'WASD',
+        ArrowLeft: 'PFEILTASTEN',
+        ArrowRight: 'PFEILTASTEN',
+        ArrowUp: 'PFEILTASTEN',
+        ArrowDown: 'PFEILTASTEN',
+    },
     pad: {
         left: [14],
         right: [15],
@@ -38,4 +52,5 @@ export const CONTROLS: Controls = {
         confirm: [],
     },
     hint: 'PFEILTASTEN ODER WISCHEN',
+    padName: 'CONTROLLER',
 }

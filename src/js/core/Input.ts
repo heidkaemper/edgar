@@ -7,6 +7,15 @@ const SWIPE_MS = 320
 const TAP_MS = 260
 const STICK_THRESHOLD = 0.55
 
+/**
+ * An action and the device it came from: a half of the keyboard or a pad, by
+ * the name the screen gives it. `null` for a finger or a key that is no one's.
+ */
+export interface Command {
+    action: Action
+    device: string | null
+}
+
 interface Press {
     x: number
     y: number
@@ -28,7 +37,7 @@ export class Input {
     /** Set by the platform; called once with the very first input. */
     onFirstInput: (() => void) | null = null
 
-    private queue: Action[] = []
+    private queue: Command[] = []
     private held = new Set<string>()
     private presses = new Map<number, Press>()
     private padHeld = new Set<string>()
@@ -40,23 +49,29 @@ export class Input {
         this.tapZones = zones
     }
 
-    take(): Action[] {
+    take(): Command[] {
         const actions = this.queue
         this.queue = []
         return actions
     }
 
-    /** Jump is held: with the cape, that is a glide. */
-    jumpHeld(): boolean {
+    /** Jump is held on that device, or on any for `null`: with the cape, that is a glide. */
+    jumpHeld(device: string | null): boolean {
         for (const code of this.held) {
-            if (this.controls.keys[code] === 'jump') {
+            if (this.controls.keys[code] === 'jump' && this.owns(device, this.groupOf(code))) {
                 return true
             }
         }
-        if (this.presses.size > 0) {
+        if (this.presses.size > 0 && device === null) {
             return true
         }
-        return [...this.padHeld].some((key) => key === 'jump' || key === 'up')
+        for (const held of this.padHeld) {
+            const [pad, key] = held.split(':')
+            if ((key === 'jump' || key === 'up') && this.owns(device, pad)) {
+                return true
+            }
+        }
+        return false
     }
 
     keyDown(code: string): void {
@@ -65,7 +80,7 @@ export class Input {
         this.held.add(code)
         const action = this.controls.keys[code]
         if (action) {
-            this.queue.push(action)
+            this.queue.push({ action, device: this.groupOf(code) })
         }
     }
 
@@ -103,10 +118,10 @@ export class Input {
         }
         press.swiped = true
         if (Math.abs(dx) > Math.abs(dy)) {
-            this.queue.push(dx > 0 ? 'right' : 'left')
+            this.queue.push({ action: dx > 0 ? 'right' : 'left', device: null })
             return
         }
-        this.queue.push(dy < 0 ? 'jump' : 'duck')
+        this.queue.push({ action: dy < 0 ? 'jump' : 'duck', device: null })
     }
 
     pressUp(id: number, x: number, y: number): void {
@@ -118,7 +133,7 @@ export class Input {
         // Without zones a tap confirms; with them, a zone may also mean nothing.
         const action = this.tapZones ? this.tapZones(x, y) : 'confirm'
         if (action) {
-            this.queue.push(action)
+            this.queue.push({ action, device: null })
         }
     }
 
@@ -135,36 +150,51 @@ export class Input {
             if (!pad) {
                 continue
             }
+            // Two players may hold the same button, so held buttons are kept apart by pad.
+            const name = `${this.controls.padName} ${pad.index + 1}`
+            const hold = (key: string): void => {
+                now.add(`${name}:${key}`)
+            }
             for (const action of Object.keys(this.controls.pad) as Action[]) {
                 if (this.controls.pad[action].some((index) => pad.buttons[index]?.pressed)) {
-                    now.add(action)
+                    hold(action)
                 }
             }
             const [stickX = 0, stickY = 0] = pad.axes
             if (stickX < -STICK_THRESHOLD) {
-                now.add('left')
+                hold('left')
             }
             if (stickX > STICK_THRESHOLD) {
-                now.add('right')
+                hold('right')
             }
             if (stickY < -STICK_THRESHOLD) {
-                now.add('up')
+                hold('up')
             }
             if (stickY > STICK_THRESHOLD) {
-                now.add('down')
+                hold('down')
             }
         }
 
         const aliases: Record<string, Action> = { up: 'jump', down: 'duck' }
-        for (const key of now) {
-            if (this.padHeld.has(key)) {
+        for (const held of now) {
+            if (this.padHeld.has(held)) {
                 continue
             }
             this.first()
             this.touchMode = false
-            this.queue.push(aliases[key] ?? (key as Action))
+            const [pad, key] = held.split(':')
+            this.queue.push({ action: aliases[key] ?? (key as Action), device: pad })
         }
         this.padHeld = now
+    }
+
+    private groupOf(code: string): string | null {
+        return this.controls.groups[code] ?? null
+    }
+
+    /** Asking for `null` means any device; a key that is no one's steers no one of two. */
+    private owns(asked: string | null, device: string | null): boolean {
+        return asked === null || asked === device
     }
 
     private first(): void {

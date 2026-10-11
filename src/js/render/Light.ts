@@ -91,9 +91,11 @@ export class Light {
         const to = KEYS[index + 1]
         const t = share(index, at)
         const rise = Math.min(70, (view.horizon + 1) * 0.5)
-        this.sunX = Math.round(view.w * (from.sun[0] + (to.sun[0] - from.sun[0]) * t))
+        // One sky spans every picture of a race.
+        const width = view.w * view.panes
+        this.sunX = Math.round(width * (from.sun[0] + (to.sun[0] - from.sun[0]) * t))
         this.sunY = Math.round(view.horizon - rise * (from.sun[1] + (to.sun[1] - from.sun[1]) * t))
-        this.moonX = Math.round(view.w * (from.moon[0] + (to.moon[0] - from.moon[0]) * t))
+        this.moonX = Math.round(width * (from.moon[0] + (to.moon[0] - from.moon[0]) * t))
         this.moonY = Math.round(view.horizon - rise * (from.moon[1] + (to.moon[1] - from.moon[1]) * t))
 
         const step = Math.floor(at / LIGHT_STEP_METRES)
@@ -113,7 +115,7 @@ export class Light {
         }
         ctx.globalCompositeOperation = 'multiply'
         ctx.fillStyle = this.tint
-        ctx.fillRect(0, 0, view.w, view.h)
+        ctx.fillRect(0, 0, view.w * view.panes, view.h)
         ctx.globalCompositeOperation = 'source-over'
     }
 
