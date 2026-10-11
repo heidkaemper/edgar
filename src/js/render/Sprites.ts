@@ -1,6 +1,6 @@
 import { STEP_SCALES, STEPS, stepIndex } from '../track/Projection'
 import type { PalKey } from './Palette'
-import { PAL } from './Palette'
+import { PAL, toRgb } from './Palette'
 import type { Surface } from './Surface'
 import { createSurface } from './Surface'
 
@@ -36,6 +36,100 @@ export function bake(art: Art): Surface {
             ctx.fillRect(x, y, 1, 1)
         }
     }
+    return canvas
+}
+
+/** A drawing as numbers: `[r, g, b]` per pixel, and whether it is drawn at all. */
+interface Pixels {
+    w: number
+    h: number
+    rgb: Float32Array
+    opaque: Uint8Array
+}
+
+function readPixels(art: Art): Pixels {
+    const w = Math.max(1, art.rows.reduce((max, row) => Math.max(max, row.length), 0))
+    const h = Math.max(1, art.rows.length)
+    const rgb = new Float32Array(w * h * 3)
+    const opaque = new Uint8Array(w * h)
+
+    art.rows.forEach((row, y) => {
+        for (let x = 0; x < row.length; x++) {
+            const key = art.map[row[x]]
+            if (row[x] === TRANSPARENT || !key) {
+                continue
+            }
+            const index = y * w + x
+            rgb.set(toRgb(PAL[key]), index * 3)
+            opaque[index] = 1
+        }
+    })
+    return { w, h, rgb, opaque }
+}
+
+interface Share {
+    index: number
+    weight: number
+}
+
+/** For each target cell along one axis, the source cells under it and how much of each. */
+function footprints(source: number, target: number): Share[][] {
+    const span = source / target
+    const result: Share[][] = []
+    for (let cell = 0; cell < target; cell++) {
+        const from = cell * span
+        const to = from + span
+        const shares: Share[] = []
+        for (let index = Math.floor(from); index < Math.min(source, Math.ceil(to)); index++) {
+            shares.push({ index, weight: Math.min(to, index + 1) - Math.max(from, index) })
+        }
+        result.push(shares)
+    }
+    return result
+}
+
+/**
+ * Resize by area: each pixel is the average of what it covers, so a thin line
+ * fades with distance instead of blinking in and out from one step to the
+ * next. The silhouette stays hard: a pixel less than half covered stays empty.
+ */
+function resampleByArea(pixels: Pixels, w: number, h: number): Surface {
+    const { canvas, ctx } = createSurface(w, h)
+    const image = ctx.createImageData(w, h)
+    const columns = footprints(pixels.w, w)
+    const rows = footprints(pixels.h, h)
+    const area = (pixels.w / w) * (pixels.h / h)
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let covered = 0
+            let r = 0
+            let g = 0
+            let b = 0
+            for (const row of rows[y]) {
+                for (const column of columns[x]) {
+                    const index = row.index * pixels.w + column.index
+                    if (!pixels.opaque[index]) {
+                        continue
+                    }
+                    const weight = row.weight * column.weight
+                    covered += weight
+                    r += pixels.rgb[index * 3] * weight
+                    g += pixels.rgb[index * 3 + 1] * weight
+                    b += pixels.rgb[index * 3 + 2] * weight
+                }
+            }
+            if (covered < area / 2) {
+                continue
+            }
+            const offset = (y * w + x) * 4
+            image.data[offset] = r / covered
+            image.data[offset + 1] = g / covered
+            image.data[offset + 2] = b / covered
+            image.data[offset + 3] = 255
+        }
+    }
+    ctx.putImageData(image, 0, 0)
     return canvas
 }
 
@@ -91,10 +185,12 @@ export function overlay(base: string[], top: string[], dx: number, dy: number): 
  */
 export class DepthSprite {
     readonly master: Surface
+    private readonly pixels: Pixels
     private readonly steps: (Surface | undefined)[] = new Array(STEPS)
 
     constructor(art: Art) {
         this.master = bake(art)
+        this.pixels = readPixels(art)
     }
 
     get w(): number {
@@ -125,7 +221,9 @@ export class DepthSprite {
             return cached
         }
         const scale = STEP_SCALES[index]
-        const surface = resample(this.master, this.master.width * scale, this.master.height * scale)
+        const w = Math.max(1, Math.round(this.pixels.w * scale))
+        const h = Math.max(1, Math.round(this.pixels.h * scale))
+        const surface = resampleByArea(this.pixels, w, h)
         this.steps[index] = surface
         return surface
     }
