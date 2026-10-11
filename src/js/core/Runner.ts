@@ -5,6 +5,7 @@ import {
     CAMERA_FOLLOW,
     CAPE_FRAMES,
     CAUGHT_FRAMES,
+    CHEER_TURN,
     CHICKEN_SPEED,
     GATE_CLEAR,
     GRACE_FRAMES,
@@ -23,6 +24,7 @@ import {
     BRIDGE_MARGIN,
     ROAD_HALF,
     RECOVER_EASE,
+    SIGH_EVERY,
     SLOW_FRAMES,
     SLOW_SHARE,
     STAGE_BASE,
@@ -30,6 +32,8 @@ import {
     STAGE_METRES,
     STAGE_STEP,
     TITLE_SPEED,
+    TROPHY_DROP,
+    TROPHY_FALL,
     TURBO_FRAMES,
     TURBO_SPEED,
     WADE_SPEED,
@@ -71,6 +75,7 @@ const WAGON_RIDE = 16
 const BRIDGE_REACH = 15
 /** Depth at which an animal makes itself heard. */
 const ANNOUNCE_Z = 900
+const CONFETTI = [PAL.rainbow1, PAL.rainbow2, PAL.rainbow3, PAL.rainbow4, PAL.rainbow5, PAL.white]
 const DEBRIS: Partial<Record<Thing['kind'], string[]>> = {
     hurdle: [PAL.hazard, PAL.hazardDark, PAL.post],
     gate: [PAL.barrier, PAL.white, PAL.post],
@@ -355,11 +360,34 @@ export class Runner {
         if (running) {
             this.updateAbilities()
         }
-        if (this.bello.mode === 'sitting' && this.frame % 14 === 0) {
-            const point = this.edgarScreen()
+        if (this.seated) {
+            this.sitting()
+        }
+        if (this.cheering >= 0) {
+            this.celebrate()
+        }
+        if (this.state === 'caught' && this.stateFrame > CAUGHT_FRAMES) {
+            this.finish()
+        }
+    }
+
+    /** Bello caught him and sits beside him: pleased with himself, and Edgar not at all. */
+    get seated(): boolean {
+        return this.bello.mode === 'sitting'
+    }
+
+    /** Frames since the winner of a race turned round to cheer; negative before, and for everyone else. */
+    get cheering(): number {
+        return this.state === 'done' ? this.stateFrame - CHEER_TURN : -1
+    }
+
+    /** Hearts rise over Bello; now and then Edgar sighs a little cloud. */
+    private sitting(): void {
+        if (this.frame % 14 === 0) {
+            const point = this.projection.project(this.bello.x, this.bello.z)
             this.particles.add({
-                x: point.x - 30 + Math.random() * 40,
-                y: point.y - 70,
+                x: point.x - 20 + Math.random() * 40,
+                y: point.groundY - 70,
                 vx: (Math.random() - 0.5) * 0.8,
                 vy: -1.2,
                 gravity: 0,
@@ -367,9 +395,35 @@ export class Runner {
                 sprite: ART.heart,
             })
         }
-        if (this.state === 'caught' && this.stateFrame > CAUGHT_FRAMES) {
-            this.finish()
+        if (this.frame % SIGH_EVERY !== 0) {
+            return
         }
+        const point = this.edgarScreen()
+        for (let puff = 0; puff < 3; puff++) {
+            this.particles.add({ x: point.x + 32 + puff * 6, y: point.y - 46 - puff * 5, vx: 0.4, vy: -0.35, gravity: 0, life: 40 + puff * 6, color: PAL.cloud, size: 4 - puff })
+        }
+    }
+
+    /** The trophy lands in his arms with a fanfare, and confetti keeps falling round him. */
+    private celebrate(): void {
+        const point = this.edgarScreen()
+        if (this.stateFrame === TROPHY_DROP + TROPHY_FALL) {
+            this.particles.burst(point.x, point.y - 50, 14, PAL.spark, 4, 3)
+            this.sound.record()
+        }
+        if (this.stateFrame < TROPHY_DROP + TROPHY_FALL || this.frame % 3 !== 0) {
+            return
+        }
+        this.particles.add({
+            x: point.x - 90 + Math.random() * 180,
+            y: point.y - 170,
+            vx: (Math.random() - 0.5) * 0.6,
+            vy: 0.6 + Math.random() * 0.6,
+            gravity: 0.02,
+            life: 110,
+            color: CONFETTI[Math.floor(Math.random() * CONFETTI.length)],
+            size: 2 + Math.floor(Math.random() * 2),
+        })
     }
 
     /** The speed of the stretch of road Edgar is on, as a multiple of `CRUISE_SPEED`. */

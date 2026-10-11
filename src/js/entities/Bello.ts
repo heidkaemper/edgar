@@ -1,4 +1,4 @@
-import { BELLO_BARK_FRAMES, BELLO_FAR, BELLO_FRAMES, BELLO_NEAR, BELLO_SIDE } from '../config'
+import { BELLO_BARK_FRAMES, BELLO_FAR, BELLO_FRAMES, BELLO_NEAR, BELLO_SIDE, PLAYER_Z, Z_NEAR } from '../config'
 
 type Mode = 'away' | 'chasing' | 'dropping' | 'catching' | 'sitting'
 
@@ -24,6 +24,11 @@ export class Bello {
 
     get visible(): boolean {
         return this.mode !== 'away'
+    }
+
+    /** How far in front of the camera he is; at his closest he is cut off by the bottom of the picture. */
+    get z(): number {
+        return Math.max(Z_NEAR * 0.75, PLAYER_Z - this.gap)
     }
 
     /** In sight, so a second stumble ends the run. */

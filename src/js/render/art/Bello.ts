@@ -109,43 +109,46 @@ export const BELLO_RUN = [
     bello(HEAD_EARS_DOWN, LEGS_MID, TAIL_UP, 0),
 ]
 
-/** Sitting, facing Edgar and the camera, after the catch. */
-export const BELLO_SIT = outlined(
-    overlay(
-        stack(
-            [
-                symmetric([
-                    '........ggggg',
-                    '......GGggggg',
-                    '...ee.Ggggggg',
-                    '..eeeeggggGGG',
-                    '..eeeeggwoGGG',
-                    '..eeeeggooGGG',
-                    '..eeeegggGGGG',
-                    '..eeeeggGGGoo',
-                    '...eeegGGGGoo',
-                    '...eee.gGGGGo',
-                    '....e..gggGGG',
-                    '......ccccccc',
-                    '......cccccc.',
-                ]),
-                0,
-            ],
-            [
-                symmetric([
-                    '......ggggGww',
-                    '.....gggggGww',
-                    '....ggggggGww',
-                    '...ggggggg.Gw',
-                    '...gggggg.ggw',
-                    '...gggggg.ggw',
-                    '...kkkkk.wwww',
-                ]),
-                0,
-            ],
-        ),
-        ['.tt.', 'tttt', '.tt.', '.yy.'],
-        11,
-        10,
+const SITTING = overlay(
+    stack(
+        [
+            symmetric([
+                '........ggggg',
+                '......GGggggg',
+                '...ee.Ggggggg',
+                '..eeeeggggGGG',
+                '..eeeeggwoGGG',
+                '..eeeeggooGGG',
+                '..eeeegggGGGG',
+                '..eeeeggGGGoo',
+                '...eeegGGGGoo',
+                '...eee.gGGGGo',
+                '....e..gggGGG',
+                '......ccccccc',
+                '......cccccc.',
+            ]),
+            0,
+        ],
+        [
+            symmetric([
+                '......ggggGww',
+                '.....gggggGww',
+                '....ggggggGww',
+                '...ggggggg.Gw',
+                '...gggggg.ggw',
+                '...gggggg.ggw',
+                '...kkkkk.wwww',
+            ]),
+            0,
+        ],
     ),
+    ['.tt.', 'tttt', '.tt.', '.yy.'],
+    11,
+    10,
 )
+
+/** Sitting after the catch, facing the camera and pleased with himself: the tail sweeps up and out. */
+export const BELLO_WAG = [
+    outlined(overlay(SITTING, ['....w', '...gw', '..gg.', '.gg..', 'gg...'], 22, 14)),
+    outlined(overlay(SITTING, ['.....', '.....', '...ww', 'ggggw', 'gg...'], 22, 14)),
+]

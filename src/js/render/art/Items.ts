@@ -33,6 +33,23 @@ export const ITEM_MAP: ColorMap = {
 /** Floats up over Edgar and Bello at the end. */
 export const HEART = outlined(['HH.HH', 'HHHHH', 'HHHHH', '.HHH.', '..H..'])
 
+/** The prize for winning a race: gold, with an acorn on the front. */
+export const TROPHY = outlined([
+    '..LLLLLLLLLL..',
+    'YYLYYYYYYYYKYY',
+    'Y.LYYYccYYYK.Y',
+    'Y.LYYccccYYK.Y',
+    '.YLYYaAaaYYKY.',
+    '..LYYaAaaYYK..',
+    '..LYYYaaYYYK..',
+    '...LYYYYYYK...',
+    '....LYYYYK....',
+    '......LK......',
+    '......LK......',
+    '....KKKKKK....',
+    '...KKKKKKKK...',
+])
+
 export const ACORN = outlined([
     '...cc...',
     '.cccccc.',

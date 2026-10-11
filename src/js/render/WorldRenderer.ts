@@ -1,4 +1,15 @@
-import { MUD_FRAMES, PLAYER_SCALE, PLAYER_Z, SHADOW_ALPHA, SKATE_FRAME_Z, Z_MAX, Z_NEAR } from '../config'
+import {
+    MUD_FRAMES,
+    PLAYER_SCALE,
+    PLAYER_Z,
+    SHADOW_ALPHA,
+    SIGH_EVERY,
+    SIGH_FRAMES,
+    SKATE_FRAME_Z,
+    TROPHY_DROP,
+    TROPHY_FALL,
+    Z_MAX,
+} from '../config'
 import type { Runner, Splash } from '../core/Runner'
 import type { Thing } from '../entities/Thing'
 import { ANIMALS, LONG, SCENERY } from '../entities/Thing'
@@ -8,6 +19,7 @@ import { ACORN_LIFT } from '../track/Spawner'
 import { view } from '../track/View'
 import type { EdgarFrame } from './Art'
 import { ART } from './Art'
+import { EDGAR_LAP } from './art/Edgar'
 import { drawText, textWidth } from './Font'
 import { PAL } from './Palette'
 
@@ -32,6 +44,12 @@ function backToFront(a: Drawable, b: Drawable): number {
 }
 
 const BELLO_STRIDE_Z = 26
+/** Sitting, Bello bounces with joy now and then. */
+const BELLO_HOP_EVERY = 100
+const BELLO_HOP_FRAMES = 16
+/** The winner hops while he cheers, then now and then with the trophy, smaller. */
+const CHEER_HOP_FRAMES = 18
+const HOLD_HOP_EVERY = 70
 
 /**
  * Everything standing on the road, back to front: things, rails, Bello and
@@ -210,11 +228,11 @@ export class WorldRenderer {
     private edgarFrame(runner: Runner): EdgarFrame[] {
         const edgar = runner.edgar
         const art = ART.edgar
-        if (runner.state === 'caught' && runner.bello.mode === 'sitting') {
-            return art.caught
+        if (runner.seated) {
+            return art.sad[runner.frame % SIGH_EVERY < SIGH_FRAMES ? 1 : 0]
         }
-        if (runner.state === 'over') {
-            return art.caught
+        if (runner.cheering >= 0) {
+            return runner.stateFrame < TROPHY_DROP + TROPHY_FALL ? art.cheer : art.hold
         }
         if (edgar.stumble > 0) {
             return art.stumble[Math.floor(runner.frame / 5) % 2]
@@ -264,8 +282,10 @@ export class WorldRenderer {
         const frame = this.edgarFrame(runner)[palette]
         const sprite = frame.image
         const x0 = Math.round(x - sprite.width / 2)
-        const y0 = Math.round(ground - sprite.height - edgar.y * PLAYER_SCALE)
-        const wobble = edgar.stumble > 0 ? Math.sin(runner.frame * 0.7) * 0.8 : 0
+        const y0 = Math.round(ground - sprite.height - edgar.y * PLAYER_SCALE - hop(runner))
+        // Facing the camera, he has nothing on his back; and a catch freezes the stumble counter mid-shake.
+        const facing = runner.seated || runner.cheering >= 0
+        const wobble = edgar.stumble > 0 && !facing ? Math.sin(runner.frame * 0.7) * 0.8 : 0
         const lean = Math.round((edgar.lean + wobble) * 6)
 
         // Three bands with decreasing offset: a lean without a second drawing.
@@ -276,7 +296,10 @@ export class WorldRenderer {
         ctx.drawImage(sprite, 0, b1, sprite.width, b2 - b1, x0 + Math.round(lean * 0.5), y0 + b1, sprite.width, b2 - b1)
         ctx.drawImage(sprite, 0, b2, sprite.width, h - b2, x0, y0 + b2, sprite.width, h - b2)
 
-        if (runner.state === 'over' || (runner.state === 'caught' && runner.bello.mode === 'sitting')) {
+        if (runner.cheering >= 0) {
+            this.drawTrophy(ctx, runner, x, y0 + sprite.height - EDGAR_LAP * PLAYER_SCALE)
+        }
+        if (facing) {
             return
         }
 
@@ -299,14 +322,28 @@ export class WorldRenderer {
         }
     }
 
+    /** It drops from the sky into the winner's arms and stays there, resting on his lap. */
+    private drawTrophy(ctx: CanvasRenderingContext2D, runner: Runner, x: number, lap: number): void {
+        const fallen = runner.stateFrame - TROPHY_DROP
+        if (fallen < 0) {
+            return
+        }
+        const image = ART.trophy
+        const share = Math.min(1, fallen / TROPHY_FALL)
+        const top = -image.height + (lap + 2 * PLAYER_SCALE) * share * share
+        ctx.drawImage(image, Math.round(x - image.width / 2), Math.round(top))
+    }
+
     private drawBello(ctx: CanvasRenderingContext2D, runner: Runner): void {
         const bello = runner.bello
-        const z = Math.max(Z_NEAR * 0.75, PLAYER_Z - bello.gap)
+        const z = bello.z
         const point = this.projection.project(bello.x, z)
 
         if (bello.mode === 'sitting') {
-            const image = ART.belloSit.at(PLAYER_Z)
-            ctx.drawImage(image, Math.round(point.x - image.width / 2), Math.round(point.groundY - image.height))
+            const image = ART.belloWag[Math.floor(runner.frame / 12) % ART.belloWag.length].at(PLAYER_Z)
+            const beat = runner.frame % BELLO_HOP_EVERY
+            const bounce = beat < BELLO_HOP_FRAMES ? Math.sin((beat / BELLO_HOP_FRAMES) * Math.PI) * 6 : 0
+            ctx.drawImage(image, Math.round(point.x - image.width / 2), Math.round(point.groundY - image.height - bounce))
             return
         }
 
@@ -320,8 +357,7 @@ export class WorldRenderer {
 
     private drawBark(ctx: CanvasRenderingContext2D, runner: Runner): void {
         const bello = runner.bello
-        const z = Math.max(Z_NEAR * 0.75, PLAYER_Z - bello.gap)
-        const point = this.projection.project(bello.x, z)
+        const point = this.projection.project(bello.x, bello.z)
         const text = 'WAU!'
         const width = textWidth(text, 2) + 12
         const x = Math.round(Math.min(view.w - width - 4, Math.max(4, point.x - width / 2 + 10)))
@@ -367,6 +403,20 @@ function ripples(ctx: CanvasRenderingContext2D, x: number, y: number, reach: num
     if (!back) {
         ctx.fillRect(Math.round(x - reach * 0.6), y - 1, Math.round(reach * 1.2), 2)
     }
+}
+
+/** How high the winner of a race hops, in screen pixels. */
+function hop(runner: Runner): number {
+    const cheering = runner.cheering
+    if (cheering < 0) {
+        return 0
+    }
+    const holding = runner.stateFrame - TROPHY_DROP - TROPHY_FALL
+    if (holding < 0) {
+        return Math.abs(Math.sin((cheering / CHEER_HOP_FRAMES) * Math.PI)) * 5 * PLAYER_SCALE
+    }
+    const beat = holding % HOLD_HOP_EVERY
+    return beat < CHEER_HOP_FRAMES ? Math.sin((beat / CHEER_HOP_FRAMES) * Math.PI) * 3 * PLAYER_SCALE : 0
 }
 
 /** A squashed disc on the ground, which anchors a sprite that would else float. */

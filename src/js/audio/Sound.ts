@@ -340,7 +340,7 @@ export class Sound {
         this.tone('square', 440, 440, 0.07, 0.1, 0.06)
     }
 
-    /** Caught, but nobody is sad: a tumble down, then a bounce back up. */
+    /** Caught: a tumble down, then a bounce back up, because Bello means no harm. */
     caught(): void {
         const notes = [784, 659, 523, 392, 523, 659]
         notes.forEach((note, i) => this.tone('triangle', note, note, 0.13, 0.18, 0.3 + i * 0.1))

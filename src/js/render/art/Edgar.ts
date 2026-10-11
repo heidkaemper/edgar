@@ -223,35 +223,95 @@ export const EDGAR_ICON = outlined([
     '..........pppppppppppp',
 ])
 
-/** Sitting, facing the camera, a little dizzy and quite happy: the end. */
-export const EDGAR_CAUGHT = outlined(
-    stack(
-        [
-            FACE_FRONT,
-            0,
-        ],
-        [
-            symmetric([
-                '.......pppppppp',
-                '..pp..pppppPPPP',
-                '.ppp..ppppPPPPP',
-                '.ppp..ppppPPPPP',
-                '.dDD..ppppPPPPP',
-                '.DD...pppppPPPP',
-                '......dpppppppp',
-                '......ddppppppp',
-            ]),
-            0,
-        ],
-        [
-            [
-                '....sssss..............sssss',
-                '...sSSSSSs............sSSSSSs',
-                '...swWwWws............swWwWws',
-                '...swwwwws............swwwwws',
-                '....sssss..............sssss',
-            ],
-            0,
-        ],
-    ),
+/** Ears drooping to the sides, heavy lids over eyes on the road, the mouth turned down. */
+const FACE_SAD = symmetric([
+    '.........pppppp',
+    '......ppppppppp',
+    '....pppppppPPPP',
+    '..ddddopppPPPPP',
+    '.dDDDdopppPPPPP',
+    '.dDDdoppppPPPPP',
+    '..dDopppppPPPPP',
+    '..pppppppppPPPP',
+    '..pppppdddPPPPP',
+    '..pppppeeePPPPP',
+    '..ppppppeeppddd',
+    '..ppppppppppddd',
+    '..pppppppppdDdd',
+    '..ppppppppppddd',
+    '...pppppppppppp',
+    '...ppppppppppDD',
+    '....ppppppppDpp',
+    '......ddddddddd',
+])
+
+/** The same with the eyes shut: the sigh. */
+const FACE_SIGH = overlay(FACE_SAD, symmetric(['.....ppp.....', '.....ddd.....', '......pp.....']), 2, 8)
+
+/** Happy eyes, a smile with its corners up: the face that wins a race. */
+const FACE_HAPPY = overlay(
+    overlay(FACE_FRONT, symmetric(['....pep.....', '....epe.....']), 3, 7),
+    symmetric(['........D...']),
+    3,
+    13,
 )
+
+const SIT_BODY = symmetric([
+    '.......pppppppp',
+    '..pp..pppppPPPP',
+    '.ppp..ppppPPPPP',
+    '.ppp..ppppPPPPP',
+    '.dDD..ppppPPPPP',
+    '.DD...pppppPPPP',
+    '......dpppppppp',
+    '......ddppppppp',
+])
+
+const SIT_SKATES = [
+    '....sssss..............sssss',
+    '...sSSSSSs............sSSSSSs',
+    '...swWwWws............swWwWws',
+    '...swwwwws............swwwwws',
+    '....sssss..............sssss',
+]
+
+/**
+ * Sitting, facing the camera, disappointed: the end. Every so often he
+ * sighs, his head sinking a row with his eyes shut.
+ */
+export const EDGAR_SAD = [
+    outlined(stack([FACE_SAD, 0], [SIT_BODY, 0], [SIT_SKATES, 0])),
+    outlined(stack([['', ...FACE_SIGH], 0], [SIT_BODY.slice(1), 0], [SIT_SKATES, 0])),
+]
+
+const STAND_BODY = symmetric([
+    '.......pppppppp',
+    '......pppppPPPP',
+    '......ppppPPPPP',
+    '......ppppPPPPP',
+    '......ppppPPPPP',
+    '......dpppppppp',
+    '.......dddppppp',
+    '........pppp...',
+    '........dppp...',
+    '.......ssssss..',
+    '.......sSSSSs..',
+    '.......wWwwWw..',
+])
+
+/** Rows below his lap at the foot of a standing pose, outline included: the trophy rests on that line. */
+export const EDGAR_LAP = 6
+
+const ARM_UP = ['pp.....', 'ppp....', '.ppp...', '..ppp..', '...ppp.', '....ppp', '.....pp']
+const ARM_HOLD = ['.pppp', 'ppppp', 'dpp..']
+
+/** Four columns of room on either side, for arms raised past his head. */
+function standing(face: string[], arm: string[], armX: number, armY: number): string[] {
+    const body = stack([face, 4], [STAND_BODY, 4])
+    const right = 38 - armX - arm[0].length
+    return outlined(overlay(overlay(body, arm, armX, armY), mirrorRows(arm), right, armY))
+}
+
+/** Facing the camera on his skates: arms up for the win, then round the trophy. */
+export const EDGAR_CHEER = standing(FACE_HAPPY, ARM_UP, 0, FACE_FRONT.length - 8)
+export const EDGAR_HOLD = standing(FACE_HAPPY, ARM_HOLD, 4, FACE_FRONT.length + 2)

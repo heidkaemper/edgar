@@ -178,6 +178,13 @@ export const BELLO_SIDE = 30
 export const BELLO_BARK_FRAMES = 70
 export const CAUGHT_FRAMES = 150
 
+// The end: the one Bello caught sighs now and then; the winner of a race turns, cheers and gets a trophy.
+export const SIGH_EVERY = 160
+export const SIGH_FRAMES = 45
+export const CHEER_TURN = 40
+export const TROPHY_DROP = 85
+export const TROPHY_FALL = 36
+
 // Mud covers part of the picture rather than tripping Edgar.
 export const MUD_FRAMES = 130
 

@@ -51,7 +51,9 @@ export const ART = {
         fall: edgarSet([EdgarArt.EDGAR_FALL])[0],
         duck: edgarSet([EdgarArt.EDGAR_DUCK])[0],
         stumble: edgarSet(EdgarArt.EDGAR_STUMBLE),
-        caught: edgarSet([EdgarArt.EDGAR_CAUGHT])[0],
+        sad: edgarSet(EdgarArt.EDGAR_SAD),
+        cheer: edgarSet([EdgarArt.EDGAR_CHEER])[0],
+        hold: edgarSet([EdgarArt.EDGAR_HOLD])[0],
     },
     helmet: big(Items.HELMET, Items.ITEM_MAP),
     helmetFlying: [big(Items.HELMET_FLYING, Items.ITEM_MAP), big(mirrorRows(Items.HELMET_FLYING), Items.ITEM_MAP)],
@@ -61,7 +63,8 @@ export const ART = {
     heart: big(Items.HEART, Items.ITEM_MAP),
     mudSpots: big(Items.MUD_SPOTS, Items.ITEM_MAP),
     bello: frames(BelloArt.BELLO_RUN, BelloArt.BELLO_MAP),
-    belloSit: depth(BelloArt.BELLO_SIT, BelloArt.BELLO_MAP),
+    belloWag: frames(BelloArt.BELLO_WAG, BelloArt.BELLO_MAP),
+    trophy: big(Items.TROPHY, Items.ITEM_MAP),
     things: {
         hurdle: [depth(Obstacles.HURDLE, Obstacles.OBSTACLE_MAP)],
         gate: [depth(Obstacles.GATE, Obstacles.OBSTACLE_MAP)],
@@ -101,7 +104,7 @@ const ALL_DEPTH: DepthSprite[] = [
     ...Object.values(ART.things).flat(),
     ...Object.values(ART.thingsLeft).flat(),
     ...ART.bello,
-    ART.belloSit,
+    ...ART.belloWag,
 ]
 
 /**
