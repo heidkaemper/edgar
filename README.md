@@ -7,6 +7,8 @@ catches up if Edgar stumbles twice. Acorns fill a jar, and a full jar gives a he
 magnet or a turbo. The further Edgar gets, the faster he goes, from afternoon through sunset and
 night to the next morning.
 
+![Preview](preview.png)
+
 ## Play it here
 
 https://heidkaemper.github.io/edgar/
