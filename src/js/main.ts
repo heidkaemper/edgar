@@ -50,6 +50,9 @@ bindWebInput(input, stage, (clientX, clientY) => {
     return { x: (clientX - rect.left) / scale, y: (clientY - rect.top) / scale }
 })
 
+/** The layout the canvas was last fitted to; a race for two changes it without a resize. */
+let fitted = -1
+
 /**
  * The short side is 360 and the long one follows the screen, so the picture
  * fills a phone held either way. Whole steps keep the pixels square where
@@ -57,16 +60,18 @@ bindWebInput(input, stage, (clientX, clientY) => {
  */
 function resize(): void {
     layoutView(stage.clientWidth / Math.max(1, stage.clientHeight))
-    const raw = Math.min(stage.clientWidth / view.w, stage.clientHeight / view.h)
+    fitted = view.version
+    const width = view.w * view.panes
+    const raw = Math.min(stage.clientWidth / width, stage.clientHeight / view.h)
     scale = raw >= 3 ? Math.floor(raw) : raw
 
-    if (canvas.width !== view.w || canvas.height !== view.h) {
+    if (canvas.width !== width || canvas.height !== view.h) {
         // Resizing a canvas resets its context, image smoothing included.
-        canvas.width = view.w
+        canvas.width = width
         canvas.height = view.h
     }
     ctx.imageSmoothingEnabled = false
-    canvas.style.width = `${Math.round(view.w * scale)}px`
+    canvas.style.width = `${Math.round(width * scale)}px`
     canvas.style.height = `${Math.round(view.h * scale)}px`
 
     const { paddingTop, paddingBottom } = getComputedStyle(insets)
@@ -94,7 +99,7 @@ if (import.meta.env.DEV) {
     // ?run&warp=600&give=cape&stumble — reach any state for a screenshot.
     const params = new URLSearchParams(location.search)
     if (params.has('run')) {
-        debug.start(Number(params.get('seed') ?? 7) as never)
+        debug.start(Number(params.get('seed') ?? 7) as never, (params.has('two') ? 2 : 1) as never)
     }
     if (params.has('ghost')) {
         debug.ghost()
@@ -142,6 +147,9 @@ let fpsSecond = performance.now()
 const loop = new Loop(
     () => game.update(),
     () => {
+        if (view.version !== fitted) {
+            resize()
+        }
         game.render()
         if (!showFps) {
             return

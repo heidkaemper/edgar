@@ -153,7 +153,7 @@ class HillStrip {
     private build(shift: number): void {
         this.origin = shift
         this.version = view.version
-        const width = view.w + HILL_MARGIN * 2
+        const width = view.w * view.panes + HILL_MARGIN * 2
         const { canvas, ctx } = createSurface(width, this.tallest * 2)
         ctx.fillStyle = this.color
         for (let x = 0; x < width; x++) {
@@ -182,7 +182,9 @@ class HillStrip {
  */
 export class TrackRenderer {
     private version = -1
-    private lightVersion = -1
+    private hazeLight = -1
+    private skyVersion = -1
+    private skyLight = -1
     private sky!: Painted
     private haze!: Painted
     private sun!: Surface
@@ -209,21 +211,39 @@ export class TrackRenderer {
     }
 
     /**
-     * `shakeX` because the ground is put, not drawn, and ignores the
-     * transform. `things` for the rails, whose bars are drawn into the ground.
+     * Sky, sun, moon, clouds and hills, across the whole playfield: a race for
+     * two shares one sky over both roads.
      */
-    draw(ctx: CanvasRenderingContext2D, travel: number, shakeX: number, things: readonly Thing[], light: Light): void {
-        if (this.version !== view.version) {
-            this.rebuild(ctx)
+    drawSky(ctx: CanvasRenderingContext2D, travel: number, light: Light): void {
+        if (this.skyVersion !== view.version) {
+            this.skyVersion = view.version
+            this.skyLight = -1
+            this.sky = painted(view.w * view.panes, view.horizon + 1)
         }
-        if (this.lightVersion !== light.version) {
-            this.relight(light)
+        if (this.skyLight !== light.version) {
+            this.skyLight = light.version
+            this.paintSky(light)
+            this.sun = disc(SUN_RADIUS, light.sun)
         }
         ctx.drawImage(this.sky.canvas, 0, 0)
         this.drawBodies(ctx, light)
         this.drawClouds(ctx, travel, light)
         this.drawHills(ctx, light)
-        this.drawGround(ctx, travel, shakeX, things)
+    }
+
+    /**
+     * `shakeX` because the ground is put, not drawn, and ignores the
+     * transform. `things` for the rails, whose bars are drawn into the ground.
+     */
+    drawGround(ctx: CanvasRenderingContext2D, travel: number, shakeX: number, things: readonly Thing[], light: Light): void {
+        if (this.version !== view.version) {
+            this.rebuild(ctx)
+        }
+        if (this.hazeLight !== light.version) {
+            this.hazeLight = light.version
+            this.paintHaze(light)
+        }
+        this.fillGround(ctx, travel, shakeX, things)
     }
 
     /** Drawn after the objects, so the far ones fade in out of the distance. */
@@ -233,20 +253,11 @@ export class TrackRenderer {
 
     private rebuild(ctx: CanvasRenderingContext2D): void {
         this.version = view.version
-        this.lightVersion = -1
-        this.sky = painted(view.w, view.horizon + 1)
+        this.hazeLight = -1
         this.haze = painted(view.w, Math.max(2, Math.round(view.camY * (FOCAL / Z_MAX))))
         this.rows = this.buildRows()
         this.ground = ctx.createImageData(view.w, Math.max(1, view.h - view.horizon - 1))
         this.pixels = new Uint32Array(this.ground.data.buffer)
-    }
-
-    /** A new hour: the sky, the haze and the sun are painted again, the rest takes its colours as it draws. */
-    private relight(light: Light): void {
-        this.lightVersion = light.version
-        this.paintSky(light)
-        this.paintHaze(light)
-        this.sun = disc(SUN_RADIUS, light.sun)
     }
 
     /**
@@ -392,7 +403,7 @@ export class TrackRenderer {
         return rows
     }
 
-    private drawGround(ctx: CanvasRenderingContext2D, travel: number, shakeX: number, things: readonly Thing[]): void {
+    private fillGround(ctx: CanvasRenderingContext2D, travel: number, shakeX: number, things: readonly Thing[]): void {
         const pixels = this.pixels
         const width = view.w
         const streams = this.gatherStreams(things)
@@ -553,9 +564,10 @@ export class TrackRenderer {
     }
 
     private drawClouds(ctx: CanvasRenderingContext2D, travel: number, light: Light): void {
-        const span = view.w + 140
+        const width = view.w * view.panes
+        const span = width + 140
         const drift = travel * 0.004 - this.curve.drift * 0.3
-        const count = Math.ceil(view.w / 160)
+        const count = Math.ceil(width / 160)
         for (let i = 0; i < count; i++) {
             let x = (i * 194 + 20 - drift) % span
             if (x < 0) {

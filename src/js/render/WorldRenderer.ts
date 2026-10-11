@@ -1,5 +1,5 @@
 import { MUD_FRAMES, PLAYER_SCALE, PLAYER_Z, SHADOW_ALPHA, SKATE_FRAME_Z, Z_MAX, Z_NEAR } from '../config'
-import type { Game, Splash } from '../core/Game'
+import type { Runner, Splash } from '../core/Runner'
 import type { Thing } from '../entities/Thing'
 import { ANIMALS, LONG, SCENERY } from '../entities/Thing'
 import type { Projection } from '../track/Projection'
@@ -49,12 +49,12 @@ export class WorldRenderer {
      * `haze` goes in just behind Edgar: it fades everything in the distance,
      * but never him, however high the cape carries him.
      */
-    draw(ctx: CanvasRenderingContext2D, game: Game, haze: () => void): void {
+    draw(ctx: CanvasRenderingContext2D, runner: Runner, haze: () => void): void {
         this.used = 0
         this.order.length = 0
         this.add(PLAYER_Z + 0.01, Layer.Haze, null)
 
-        for (const thing of game.things) {
+        for (const thing of runner.things) {
             if (LONG.has(thing.kind)) {
                 continue
             }
@@ -64,30 +64,32 @@ export class WorldRenderer {
             this.add(thing.z, Layer.Thing, thing)
         }
 
-        this.add(PLAYER_Z, Layer.Edgar, null)
-        if (game.bello.visible) {
-            this.add(PLAYER_Z - game.bello.gap - 0.01, Layer.Bello, null)
+        if (runner.present) {
+            this.add(PLAYER_Z, Layer.Edgar, null)
+        }
+        if (runner.bello.visible) {
+            this.add(PLAYER_Z - runner.bello.gap - 0.01, Layer.Bello, null)
         }
 
         this.order.sort(backToFront)
         for (const item of this.order) {
-            this.drawItem(ctx, game, item, haze)
+            this.drawItem(ctx, runner, item, haze)
         }
     }
 
-    private drawItem(ctx: CanvasRenderingContext2D, game: Game, item: Drawable, haze: () => void): void {
+    private drawItem(ctx: CanvasRenderingContext2D, runner: Runner, item: Drawable, haze: () => void): void {
         switch (item.layer) {
             case Layer.Haze:
                 haze()
                 break
             case Layer.Thing:
-                this.drawThing(ctx, item.thing!, game.frame)
+                this.drawThing(ctx, item.thing!, runner.frame)
                 break
             case Layer.Edgar:
-                this.drawEdgar(ctx, game)
+                this.drawEdgar(ctx, runner)
                 break
             case Layer.Bello:
-                this.drawBello(ctx, game)
+                this.drawBello(ctx, runner)
                 break
         }
     }
@@ -107,8 +109,8 @@ export class WorldRenderer {
     }
 
     /** On top of everything in the world, under the HUD. */
-    drawEffects(ctx: CanvasRenderingContext2D, game: Game): void {
-        for (const particle of game.particles.list) {
+    drawEffects(ctx: CanvasRenderingContext2D, runner: Runner): void {
+        for (const particle of runner.particles.list) {
             if (particle.sprite) {
                 const image = particle.spin && Math.floor(particle.life / 4) % 2 ? particle.spin : particle.sprite
                 ctx.drawImage(image, Math.round(particle.x - image.width / 2), Math.round(particle.y - image.height / 2))
@@ -119,15 +121,15 @@ export class WorldRenderer {
             ctx.fillRect(Math.round(particle.x), Math.round(particle.y), size, size)
         }
 
-        if (game.turbo || game.stageFlash > 0) {
-            this.drawSpeedLines(ctx, game.frame)
+        if (runner.turbo || runner.stageFlash > 0) {
+            this.drawSpeedLines(ctx, runner.frame)
         }
         // Mud sits on the lens, so it covers everything, Edgar included.
-        for (const splash of game.splashes) {
+        for (const splash of runner.splashes) {
             this.drawSplash(ctx, splash)
         }
-        if (game.bello.bark > 0 && game.bello.visible) {
-            this.drawBark(ctx, game)
+        if (runner.bello.bark > 0 && runner.bello.visible) {
+            this.drawBark(ctx, runner)
         }
     }
 
@@ -205,17 +207,17 @@ export class WorldRenderer {
         return Math.floor(frame / 9) % count
     }
 
-    private edgarFrame(game: Game): EdgarFrame[] {
-        const edgar = game.edgar
+    private edgarFrame(runner: Runner): EdgarFrame[] {
+        const edgar = runner.edgar
         const art = ART.edgar
-        if (game.state === 'caught' && game.bello.mode === 'sitting') {
+        if (runner.state === 'caught' && runner.bello.mode === 'sitting') {
             return art.caught
         }
-        if (game.state === 'over') {
+        if (runner.state === 'over') {
             return art.caught
         }
         if (edgar.stumble > 0) {
-            return art.stumble[Math.floor(game.frame / 5) % 2]
+            return art.stumble[Math.floor(runner.frame / 5) % 2]
         }
         if (!edgar.onGround) {
             return edgar.vy > 0.5 ? art.jump : art.fall
@@ -224,7 +226,7 @@ export class WorldRenderer {
             return art.duck
         }
         const step = Math.floor(edgar.stride / SKATE_FRAME_Z) % 4
-        const looking = game.bello.threatening && game.frame % 90 < 55
+        const looking = runner.bello.threatening && runner.frame % 90 < 55
         return (looking ? art.look : art.skate)[step]
     }
 
@@ -232,38 +234,38 @@ export class WorldRenderer {
      * In a stream he stands in the water up to his belly: drawn lower and cut
      * off at the surface, with a ring of ripples round him.
      */
-    private drawEdgar(ctx: CanvasRenderingContext2D, game: Game): void {
-        const edgar = game.edgar
+    private drawEdgar(ctx: CanvasRenderingContext2D, runner: Runner): void {
+        const edgar = runner.edgar
         const point = this.projection.project(edgar.x, PLAYER_Z)
         const sink = Math.round(edgar.sink * PLAYER_SCALE)
         if (!edgar.wading) {
             const height = Math.min(1, (edgar.y - edgar.floor) / 40)
             shadow(ctx, point.x, point.groundY - edgar.floor * PLAYER_SCALE, 13 * PLAYER_SCALE * (1 - height * 0.3), SHADOW_ALPHA * (1 - height * 0.5))
-            this.drawFigure(ctx, game, point.x, point.groundY + sink)
+            this.drawFigure(ctx, runner, point.x, point.groundY + sink)
             return
         }
 
         const surface = Math.round(point.groundY - edgar.y * PLAYER_SCALE)
-        const reach = Math.round((15 + Math.sin(game.frame * 0.25) * 1.5) * PLAYER_SCALE)
+        const reach = Math.round((15 + Math.sin(runner.frame * 0.25) * 1.5) * PLAYER_SCALE)
         ripples(ctx, point.x, surface, reach, true)
         ctx.save()
         ctx.beginPath()
         ctx.rect(0, 0, view.w, surface)
         ctx.clip()
-        this.drawFigure(ctx, game, point.x, point.groundY + sink)
+        this.drawFigure(ctx, runner, point.x, point.groundY + sink)
         ctx.restore()
         ripples(ctx, point.x, surface, reach, false)
     }
 
-    private drawFigure(ctx: CanvasRenderingContext2D, game: Game, x: number, ground: number): void {
-        const edgar = game.edgar
-        const blink = game.turbo && !game.powerEnding
-        const palette = blink ? 1 + (Math.floor(game.frame / 3) % 4) : 0
-        const frame = this.edgarFrame(game)[palette]
+    private drawFigure(ctx: CanvasRenderingContext2D, runner: Runner, x: number, ground: number): void {
+        const edgar = runner.edgar
+        const blink = runner.turbo && !runner.powerEnding
+        const palette = blink ? 1 + (Math.floor(runner.frame / 3) % 4) : 0
+        const frame = this.edgarFrame(runner)[palette]
         const sprite = frame.image
         const x0 = Math.round(x - sprite.width / 2)
         const y0 = Math.round(ground - sprite.height - edgar.y * PLAYER_SCALE)
-        const wobble = edgar.stumble > 0 ? Math.sin(game.frame * 0.7) * 0.8 : 0
+        const wobble = edgar.stumble > 0 ? Math.sin(runner.frame * 0.7) * 0.8 : 0
         const lean = Math.round((edgar.lean + wobble) * 6)
 
         // Three bands with decreasing offset: a lean without a second drawing.
@@ -274,31 +276,31 @@ export class WorldRenderer {
         ctx.drawImage(sprite, 0, b1, sprite.width, b2 - b1, x0 + Math.round(lean * 0.5), y0 + b1, sprite.width, b2 - b1)
         ctx.drawImage(sprite, 0, b2, sprite.width, h - b2, x0, y0 + b2, sprite.width, h - b2)
 
-        if (game.state === 'over' || (game.state === 'caught' && game.bello.mode === 'sitting')) {
+        if (runner.state === 'over' || (runner.state === 'caught' && runner.bello.mode === 'sitting')) {
             return
         }
 
         const head = y0 + frame.top
-        if (game.muddy > 0) {
+        if (runner.muddy > 0) {
             ctx.drawImage(ART.mudSpots, x0 + 6 + Math.round(lean * 0.5), head + 40)
         }
-        if (game.cape && !(game.powerEnding && game.frame % 2 === 0)) {
-            const glide = game.gliding
-            const cape = glide ? ART.capeGlide : ART.cape[Math.floor(game.frame / 6) % ART.cape.length]
+        if (runner.cape && !(runner.powerEnding && runner.frame % 2 === 0)) {
+            const glide = runner.gliding
+            const cape = glide ? ART.capeGlide : ART.cape[Math.floor(runner.frame / 6) % ART.cape.length]
             const sway = Math.round(lean * 0.7 - edgar.lean * 4)
             ctx.drawImage(cape, Math.round(x - cape.width / 2) + sway, head + (glide ? 28 : 32))
         }
-        if (game.helmet) {
+        if (runner.helmet) {
             ctx.drawImage(ART.helmet, Math.round(x - ART.helmet.width / 2) + lean, head + 2)
         }
-        if (game.power === 'magnet' && !game.powerEnding) {
-            const bob = Math.round(Math.sin(game.frame * 0.15) * 2)
+        if (runner.power === 'magnet' && !runner.powerEnding) {
+            const bob = Math.round(Math.sin(runner.frame * 0.15) * 2)
             ctx.drawImage(ART.magnet, Math.round(x - ART.magnet.width / 2) + lean, head - 22 + bob)
         }
     }
 
-    private drawBello(ctx: CanvasRenderingContext2D, game: Game): void {
-        const bello = game.bello
+    private drawBello(ctx: CanvasRenderingContext2D, runner: Runner): void {
+        const bello = runner.bello
         const z = Math.max(Z_NEAR * 0.75, PLAYER_Z - bello.gap)
         const point = this.projection.project(bello.x, z)
 
@@ -316,8 +318,8 @@ export class WorldRenderer {
         ctx.drawImage(image, Math.round(point.x - image.width / 2), top)
     }
 
-    private drawBark(ctx: CanvasRenderingContext2D, game: Game): void {
-        const bello = game.bello
+    private drawBark(ctx: CanvasRenderingContext2D, runner: Runner): void {
+        const bello = runner.bello
         const z = Math.max(Z_NEAR * 0.75, PLAYER_Z - bello.gap)
         const point = this.projection.project(bello.x, z)
         const text = 'WAU!'

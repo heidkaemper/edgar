@@ -23,6 +23,7 @@ export const nxScreen = screen as unknown as NxScreen
  */
 const SWITCH_CONTROLS: Controls = {
     keys: CONTROLS.keys,
+    groups: CONTROLS.groups,
     pad: {
         left: [14],
         right: [15],
@@ -32,6 +33,7 @@ const SWITCH_CONTROLS: Controls = {
         confirm: [],
     },
     hint: 'A SPRINGEN  B DUCKEN',
+    padName: CONTROLS.padName,
 }
 
 /**

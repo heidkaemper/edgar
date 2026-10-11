@@ -11,12 +11,17 @@ import {
 } from '../config'
 
 /**
- * The shape of the picture. The short side is always 360, so everything that
- * decides the game fits a 360 square; the rest of the long side is extra.
+ * The shape of one player's picture. The short side is always 360, so
+ * everything that decides the game fits a 360 square; the rest of the long
+ * side is extra. Two players get one each, side by side.
  */
 export interface View {
     w: number
     h: number
+    /** How many pictures stand side by side: the playfield is `w * panes` wide. */
+    panes: number
+    /** Width over height of the whole space the host offers. */
+    aspect: number
     portrait: boolean
     horizon: number
     feetY: number
@@ -35,6 +40,8 @@ export interface View {
 export const view: View = {
     w: 640,
     h: 360,
+    panes: 1,
+    aspect: 16 / 9,
     portrait: false,
     horizon: LANDSCAPE_HORIZON,
     feetY: LANDSCAPE_FEET,
@@ -48,14 +55,16 @@ function clamp(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, value))
 }
 
-/** `aspect` is width over height of the space the game may use. */
-export function layoutView(aspect: number): void {
-    const portrait = aspect < 1
-    const long = Math.round(clamp(VIEW_SHORT * (portrait ? 1 / aspect : aspect), VIEW_LONG_MIN, VIEW_LONG_MAX))
+/** `aspect` is width over height of the space the game may use, shared out among `panes` pictures. */
+export function layoutView(aspect: number, panes = view.panes): void {
+    const share = aspect / panes
+    const portrait = share < 1
+    const long = Math.round(clamp(VIEW_SHORT * (portrait ? 1 / share : share), VIEW_LONG_MIN, VIEW_LONG_MAX))
     const w = portrait ? VIEW_SHORT : long
     const h = portrait ? long : VIEW_SHORT
 
-    if (w === view.w && h === view.h && view.version > 0) {
+    view.aspect = aspect
+    if (w === view.w && h === view.h && panes === view.panes && view.version > 0) {
         return
     }
 
@@ -67,6 +76,7 @@ export function layoutView(aspect: number): void {
 
     view.w = w
     view.h = h
+    view.panes = panes
     view.portrait = portrait
     view.feetY = feetY
     view.horizon = feetY - span

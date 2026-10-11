@@ -1,5 +1,5 @@
 import { CAPE_FRAMES, JAR_SIZE, MAGNET_FRAMES, TURBO_FRAMES } from '../config'
-import type { Game } from '../core/Game'
+import type { Runner } from '../core/Runner'
 import { view } from '../track/View'
 import type { Ability } from './Art'
 import { ART } from './Art'
@@ -19,15 +19,15 @@ const DURATION: Record<Ability, number> = { helmet: 1, cape: CAPE_FRAMES, magnet
  * on a tall one in the sky above it; the same corners serve both.
  */
 export class Hud {
-    draw(ctx: CanvasRenderingContext2D, game: Game, touch: boolean): void {
-        this.drawDistance(ctx, game.metres)
+    draw(ctx: CanvasRenderingContext2D, runner: Runner, touch: boolean): void {
+        this.drawDistance(ctx, runner.metres)
         if (touch) {
             this.drawPause(ctx)
         }
-        const jarBottom = this.drawJar(ctx, game)
-        this.drawAbilities(ctx, game, jarBottom + 6)
-        if (game.toastTimer > 0) {
-            this.drawToast(ctx, game)
+        const jarBottom = this.drawJar(ctx, runner)
+        this.drawAbilities(ctx, runner, jarBottom + 6)
+        if (runner.toastTimer > 0) {
+            this.drawToast(ctx, runner)
         }
     }
 
@@ -53,7 +53,7 @@ export class Hud {
     }
 
     /** The jar fills with acorns; the ability it is about to give sits beside it. */
-    private drawJar(ctx: CanvasRenderingContext2D, game: Game): number {
+    private drawJar(ctx: CanvasRenderingContext2D, runner: Runner): number {
         const jar = ART.jar
         const w = jar.width * JAR_SCALE
         const h = jar.height * JAR_SCALE
@@ -63,7 +63,7 @@ export class Hud {
         // Inside of the glass, in jar pixels, outline included.
         const insideTop = 5
         const insideBottom = 19
-        const level = Math.round(((insideBottom - insideTop) * game.jar) / JAR_SIZE)
+        const level = Math.round(((insideBottom - insideTop) * runner.jar) / JAR_SIZE)
         ctx.globalAlpha = 0.45
         ctx.fillStyle = PAL.glass
         ctx.fillRect(x + 2 * JAR_SCALE, y + insideTop * JAR_SCALE, 14 * JAR_SCALE, (insideBottom - insideTop) * JAR_SCALE)
@@ -84,27 +84,27 @@ export class Hud {
         }
         ctx.drawImage(jar, x, y, w, h)
 
-        const icon = ART.icons[game.next]
-        const full = game.jar >= JAR_SIZE - 3 && Math.floor(game.frame / 8) % 2 === 0
+        const icon = ART.icons[runner.next]
+        const full = runner.jar >= JAR_SIZE - 3 && Math.floor(runner.frame / 8) % 2 === 0
         drawScaled(ctx, icon, x - icon.width * 2 - 4, y + 10 + (full ? -2 : 0), 2)
         return y + h
     }
 
     /** What Edgar wears or uses right now, each with a bar running down. */
-    private drawAbilities(ctx: CanvasRenderingContext2D, game: Game, top: number): void {
+    private drawAbilities(ctx: CanvasRenderingContext2D, runner: Runner, top: number): void {
         const right = view.w - MARGIN
         let y = top
-        if (game.helmet) {
+        if (runner.helmet) {
             drawScaled(ctx, ART.icons.helmet, right - ART.icons.helmet.width * 2, y, 2)
             y += ART.icons.helmet.height * 2 + 6
         }
-        if (!game.power || game.powerEnding) {
+        if (!runner.power || runner.powerEnding) {
             return
         }
-        const icon = ART.icons[game.power]
+        const icon = ART.icons[runner.power]
         const iconX = right - icon.width * 2
         drawScaled(ctx, icon, iconX, y, 2)
-        const share = game.powerTimer / DURATION[game.power]
+        const share = runner.powerTimer / DURATION[runner.power]
         const barW = 40
         const barX = iconX - barW - 6
         const barY = y + icon.height - 3
@@ -116,10 +116,10 @@ export class Hud {
         ctx.fillRect(barX + barW - Math.round(barW * share), barY, Math.round(barW * share), 6)
     }
 
-    private drawToast(ctx: CanvasRenderingContext2D, game: Game): void {
-        const rise = Math.max(0, 80 - game.toastTimer - 60)
+    private drawToast(ctx: CanvasRenderingContext2D, runner: Runner): void {
+        const rise = Math.max(0, 80 - runner.toastTimer - 60)
         const y = Math.round(view.horizon * 0.55) - rise
-        drawText(ctx, game.toast, view.w / 2, Math.max(view.padTop + 44, y), {
+        drawText(ctx, runner.toast, view.w / 2, Math.max(view.padTop + 44, y), {
             color: PAL.helmet,
             outline: PAL.ink,
             align: 'center',
