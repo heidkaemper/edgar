@@ -33,8 +33,12 @@ const WAVES: Record<Wave, (phase: number, step: number) => number> = {
     triangle: (phase) => 1 - Math.abs(phase - 0.5) * 4,
 }
 
-/** Fade-in of noise bursts, so they do not start with a click. */
+/** Fade-in of tones and noise bursts, so they do not start with a click. */
+const TONE_ATTACK = 0.008
 const NOISE_ATTACK = 0.004
+
+/** Where an envelope starts and ends; an exponential fall never reaches zero. */
+const SILENCE = 0.0001
 
 /** Resonance of the swept bandpass the noise runs through. */
 const NOISE_Q = 1.4
@@ -59,6 +63,12 @@ const MUSIC_VOL = 0.32
 /** How far ahead the music is scheduled on the audio clock, in seconds. */
 const LOOKAHEAD = 0.12
 
+/** Sixteenths mixed into one buffer, so a beat of music costs one node. */
+const STEPS_PER_BEAT = 4
+
+/** The longest note of the song, which may ring on past the end of its beat. */
+const LONGEST_NOTE = 0.14
+
 /**
  * `calm` is the title and the end: melody and bass, no drums. `run` adds the
  * drums, which grow busier with `intensity` from 0 to 1.
@@ -72,13 +82,25 @@ const PENTATONIC = [1047, 1175, 1319, 1568, 1760, 2093, 2349, 2637]
 const STREAK_GAP = 0.6
 
 /**
- * Every sound builds two nodes and leaves them hanging off the graph. A
- * browser sweeps those up on its own; the Switch is not trusted to.
+ * The level of a sound `time` seconds in: up from silence over `attack`, then
+ * an exponential fall back to it by `duration`, as a gain node would ramp it.
  */
-function release(source: AudioBufferSourceNode, gain: GainNode): void {
-    source.onended = () => {
-        source.disconnect()
-        gain.disconnect()
+function envelope(time: number, volume: number, attack: number, duration: number): number {
+    if (time < attack) {
+        return SILENCE + ((volume - SILENCE) * time) / attack
+    }
+    if (time < duration) {
+        return volume * Math.pow(SILENCE / volume, (time - attack) / (duration - attack))
+    }
+    return SILENCE
+}
+
+/** Adds `sound` into `into` from sample `at` on, cutting off what runs past its end. */
+function mix(into: Float32Array, at: number, sound: AudioBuffer): void {
+    const data = sound.getChannelData(0)
+    const end = Math.min(data.length, into.length - at)
+    for (let index = 0; index < end; index++) {
+        into[at + index] += data[index]
     }
 }
 
@@ -100,7 +122,7 @@ export class Sound {
     private bpm = 100
     private intensity = 0
     private step = 0
-    private nextStep = 0
+    private nextBeat = 0
 
     /** `context` is for measuring offline in development; the game passes nothing. */
     unlock(context?: BaseAudioContext): void {
@@ -151,43 +173,58 @@ export class Sound {
     setMusic(mode: MusicMode, bpm: number, intensity: number): void {
         if (mode !== this.mode && mode !== 'off') {
             this.step = 0
-            this.nextStep = 0
+            this.nextBeat = 0
         }
         this.mode = mode
         this.bpm = bpm
         this.intensity = intensity
     }
 
-    /** Schedules the next sixteenths on the audio clock; called every frame. */
+    /** Schedules the next beats on the audio clock; called every frame. */
     tick(): void {
         if (!this.ctx || this.mode === 'off') {
             return
         }
         const now = this.ctx.currentTime
-        if (this.nextStep < now) {
-            this.nextStep = now + 0.02
+        if (this.nextBeat < now) {
+            this.nextBeat = now + 0.02
         }
-        while (this.nextStep < now + LOOKAHEAD) {
-            this.playStep(this.step, this.nextStep - now)
+        while (this.nextBeat < now + LOOKAHEAD) {
+            this.playBeat(this.nextBeat - now)
+            this.nextBeat += 60 / this.bpm
+        }
+    }
+
+    /**
+     * One beat of the song mixed into one buffer: a node per note piles up
+     * faster on the Switch than it is freed.
+     */
+    private playBeat(delay: number): void {
+        const ctx = this.ctx!
+        const rate = ctx.sampleRate
+        const stepLength = (60 / this.bpm / 4) * rate
+        const beat = ctx.createBuffer(1, Math.ceil(stepLength * STEPS_PER_BEAT + rate * (LONGEST_NOTE + TAIL)), rate)
+        const data = beat.getChannelData(0)
+        for (let i = 0; i < STEPS_PER_BEAT; i++) {
+            this.writeStep(this.step, data, Math.round(stepLength * i))
             this.step = (this.step + 1) % SONG.length
-            this.nextStep += 60 / this.bpm / 4
         }
+        this.play(beat, delay, this.music!)
     }
 
     /**
      * Note lengths stay fixed whatever the tempo: chiptune staccato, and a
      * bounded set of buffers to cache.
      */
-    private playStep(step: number, delay: number): void {
-        const destination = this.music!
+    private writeStep(step: number, data: Float32Array, at: number): void {
         if (step % 2 === 0) {
             const bass = SONG.bass[step >> 1]
-            this.tone('triangle', bass, bass, 0.14, 0.2, delay, destination)
+            mix(data, at, this.waveBuffer('triangle', bass, bass, LONGEST_NOTE, 0.2, TONE_ATTACK))
         }
         const lead = SONG.lead[step]
         if (lead > 0) {
             const calm = this.mode === 'calm'
-            this.tone(calm ? 'triangle' : 'square', lead, lead, 0.1, calm ? 0.12 : 0.055, delay, destination)
+            mix(data, at, this.waveBuffer(calm ? 'triangle' : 'square', lead, lead, 0.1, calm ? 0.12 : 0.055, TONE_ATTACK))
         }
         if (this.mode !== 'run') {
             return
@@ -196,15 +233,15 @@ export class Sound {
         const beat = step % 16
         const busy = this.intensity > 0.6
         if (beat % 8 === 0 || (busy && (beat === 6 || beat === 14))) {
-            this.tone('sine', 150, 48, 0.1, 0.3, delay, destination)
+            mix(data, at, this.waveBuffer('sine', 150, 48, 0.1, 0.3, TONE_ATTACK))
         }
         if (beat === 4 || beat === 12) {
-            this.noise(0.09, 0.13, 2600, 1200, delay, destination)
+            mix(data, at, this.noiseBuffer(0.09, 2600, 1200, 0.13, NOISE_ATTACK))
         }
         // Off-beat eighths first, then every eighth, then every sixteenth.
         const offbeat = beat % 4 === 2
         if (offbeat || (this.intensity > 0.3 && beat % 2 === 0) || this.intensity > 0.75) {
-            this.noise(0.03, offbeat ? 0.05 : 0.03, 8000, 7000, delay, destination)
+            mix(data, at, this.noiseBuffer(0.03, 8000, 7000, offbeat ? 0.05 : 0.03, NOISE_ATTACK))
         }
     }
 
@@ -236,8 +273,8 @@ export class Sound {
     swish(): void {
         // A soft swell rather than a hiss: low, falling air and a gentle rising
         // hum, both fading in and out slowly, so a lane change sounds like a glide.
-        this.noise(0.24, 0.04, 700, 360, 0, undefined, 0.08)
-        this.tone('sine', 190, 280, 0.2, 0.03, 0, undefined, 0.07)
+        this.noise(0.24, 0.04, 700, 360, 0, 0.08)
+        this.tone('sine', 190, 280, 0.2, 0.03, 0, 0.07)
     }
 
     /** Acorns in quick succession climb a scale, which makes a row feel like one thing. */
@@ -325,9 +362,9 @@ export class Sound {
 
     /** Muh: low, slow and falling, with a breath of air through it. */
     moo(): void {
-        this.tone('sawtooth', 150, 112, 0.55, 0.09, 0, undefined, 0.14)
-        this.tone('triangle', 300, 225, 0.5, 0.07, 0, undefined, 0.14)
-        this.noise(0.45, 0.025, 900, 600, 0.03, undefined, 0.12)
+        this.tone('sawtooth', 150, 112, 0.55, 0.09, 0, 0.14)
+        this.tone('triangle', 300, 225, 0.5, 0.07, 0, 0.14)
+        this.noise(0.45, 0.025, 900, 600, 0.03, 0.12)
     }
 
     start(): void {
@@ -358,35 +395,45 @@ export class Sound {
         duration: number,
         volume: number,
         delay = 0,
-        destination?: AudioNode,
-        attack = 0.008,
+        attack = TONE_ATTACK,
     ): void {
+        this.play(this.waveBuffer(type, from, to, duration, volume, attack), delay)
+    }
+
+    /** Noise through a bandpass swept from one frequency to another. */
+    private noise(
+        duration: number,
+        volume: number,
+        filterFrom: number,
+        filterTo: number,
+        delay = 0,
+        attack = NOISE_ATTACK,
+    ): void {
+        this.play(this.noiseBuffer(duration, filterFrom, filterTo, volume, attack), delay)
+    }
+
+    /**
+     * One node per sound, its envelope already in the samples. nx.js frees a
+     * node only when V8 collects it, and its mixer walks every node until then.
+     */
+    private play(buffer: AudioBuffer, delay: number, destination?: AudioNode): void {
         if (!this.ctx || !this.master) {
             return
         }
-        const time = this.ctx.currentTime + SCHEDULE_AHEAD + delay
         const source = this.ctx.createBufferSource()
-        const gain = this.ctx.createGain()
-        source.buffer = this.waveBuffer(type, from, to, duration)
-
-        gain.gain.setValueAtTime(0.0001, time)
-        gain.gain.linearRampToValueAtTime(volume, time + attack)
-        gain.gain.exponentialRampToValueAtTime(0.0001, time + duration)
-
-        source.connect(gain)
-        gain.connect(destination ?? this.master)
-        source.start(time)
-        source.stop(time + duration + TAIL)
-        release(source, gain)
+        source.buffer = buffer
+        source.connect(destination ?? this.master)
+        source.start(this.ctx.currentTime + SCHEDULE_AHEAD + delay)
+        source.onended = () => source.disconnect()
     }
 
     /** One tone, its pitch sweeping the way an oscillator's exponential ramp would. */
-    private waveBuffer(type: Wave, from: number, to: number, duration: number): AudioBuffer {
+    private waveBuffer(type: Wave, from: number, to: number, duration: number, volume: number, attack: number): AudioBuffer {
         // A sweep that touches zero makes `Math.pow` return NaN for every
         // sample but the first, and a buffer of NaN silences the whole mixer.
         const low = Math.max(1, from)
         const high = Math.max(1, to)
-        const key = `t|${type}|${low}|${high}|${duration}`
+        const key = `t|${type}|${low}|${high}|${duration}|${volume}|${attack}`
         const hit = this.buffers.get(key)
         if (hit) {
             return hit
@@ -404,7 +451,7 @@ export class Sound {
         let phase = 0
         for (let index = 0; index < length; index++) {
             const step = (low * Math.pow(ratio, Math.min(index / sweep, 1))) / rate
-            data[index] = shape(phase, step)
+            data[index] = shape(phase, step) * envelope(index / rate, volume, attack, duration)
             phase += step
             phase -= Math.floor(phase)
         }
@@ -412,36 +459,9 @@ export class Sound {
         return buffer
     }
 
-    /** Noise through a bandpass swept from one frequency to another. */
-    private noise(
-        duration: number,
-        volume: number,
-        filterFrom: number,
-        filterTo: number,
-        delay = 0,
-        destination?: AudioNode,
-        attack = NOISE_ATTACK,
-    ): void {
-        if (!this.ctx || !this.master) {
-            return
-        }
-        const time = this.ctx.currentTime + SCHEDULE_AHEAD + delay
-        const source = this.ctx.createBufferSource()
-        source.buffer = this.noiseBuffer(duration, filterFrom, filterTo)
-        const gain = this.ctx.createGain()
-        gain.gain.setValueAtTime(0.0001, time)
-        gain.gain.linearRampToValueAtTime(volume, time + attack)
-        gain.gain.exponentialRampToValueAtTime(0.0001, time + duration)
-
-        source.connect(gain)
-        gain.connect(destination ?? this.master)
-        source.start(time)
-        release(source, gain)
-    }
-
     /** Cached: the grind asks for the same burst ten times a second. */
-    private noiseBuffer(duration: number, filterFrom: number, filterTo: number): AudioBuffer {
-        const key = `n|${duration}|${filterFrom}|${filterTo}`
+    private noiseBuffer(duration: number, filterFrom: number, filterTo: number, volume: number, attack: number): AudioBuffer {
+        const key = `n|${duration}|${filterFrom}|${filterTo}|${volume}|${attack}`
         const hit = this.buffers.get(key)
         if (hit) {
             return hit
@@ -471,13 +491,13 @@ export class Sound {
             y1 = y0
         }
 
-        // The resonant filter can overshoot 1; every burst peaks at exactly 1.
+        // The resonant filter can overshoot 1; every burst peaks at exactly its volume.
         let peak = 0
         for (const value of data) {
             peak = Math.max(peak, Math.abs(value))
         }
         for (let index = 0; index < length; index++) {
-            data[index] /= peak || 1
+            data[index] *= envelope(index / rate, volume, attack, duration) / (peak || 1)
         }
         this.buffers.set(key, buffer)
         return buffer

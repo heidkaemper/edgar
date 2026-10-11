@@ -46,8 +46,18 @@ sound.unlock()
 
 const game = new Game(frame.ctx, input, sound)
 
+// Sounds left behind by a round cost the mixer until V8 collects them; `nxjs.ini` exposes `gc`.
+const collect = (globalThis as { gc?: () => void }).gc
+let state = game.state
+
 const loop = new Loop(
-    () => game.update(),
+    () => {
+        game.update()
+        if (game.state !== state && game.state !== 'run') {
+            collect?.()
+        }
+        state = game.state
+    },
     () => {
         if (view.version !== fitted) {
             fit()
