@@ -16,6 +16,13 @@ export interface Command {
     device: string | null
 }
 
+/** A pad as `poll` reads it: the Gamepad API's, or one a host has turned first. */
+export interface Pad {
+    readonly index: number
+    readonly buttons: readonly { readonly pressed: boolean }[]
+    readonly axes: readonly number[]
+}
+
 interface Press {
     x: number
     y: number
@@ -36,6 +43,9 @@ export class Input {
     touchMode = false
     /** Set by the platform; called once with the very first input. */
     onFirstInput: (() => void) | null = null
+    /** Replaced by a host whose pads do not report the way they are held. */
+    readPads: () => readonly (Pad | null)[] = () =>
+        typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : []
 
     private queue: Command[] = []
     private held = new Set<string>()
@@ -143,7 +153,7 @@ export class Input {
 
     /** Called once per update; the Gamepad API has no events worth trusting. */
     poll(): void {
-        const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : []
+        const pads = this.readPads()
         const now = new Set<string>()
 
         for (const pad of pads) {

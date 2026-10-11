@@ -1,6 +1,6 @@
 import type { Controls } from '@game/core/Controls'
 import { CONTROLS } from '@game/core/Controls'
-import type { Input } from '@game/core/Input'
+import type { Input, Pad } from '@game/core/Input'
 
 /**
  * The slice of nx.js the game touches. Its globals collide with the DOM types
@@ -36,12 +36,54 @@ const SWITCH_CONTROLS: Controls = {
     padName: CONTROLS.padName,
 }
 
+interface NxGamepad extends Pad {
+    readonly styleSet: number
+}
+
+const JOY_CON_LEFT = 0x8
+const JOY_CON_RIGHT = 0x10
+const DIRECTIONS = [12, 13, 14, 15]
+
+/**
+ * Where B, A, Y and X are once a lone Joy-Con lies on its side, by the raw
+ * index that sits there: the left one turned anticlockwise, the right one clockwise.
+ */
+const SIDEWAYS_FACE: Record<number, number[]> = {
+    [JOY_CON_LEFT]: [14, 13, 12, 15],
+    [JOY_CON_RIGHT]: [1, 3, 0, 2],
+}
+
+/**
+ * The console reports a lone Joy-Con as if held upright, whatever the HOME
+ * menu was told, and nx.js cannot ask otherwise. Alone, it is held sideways,
+ * so its stick and buttons are turned here.
+ */
+function sideways(pad: NxGamepad): Pad {
+    const face = SIDEWAYS_FACE[pad.styleSet]
+    if (!face) {
+        return pad
+    }
+    const buttons = pad.buttons.map((button, index) => ({ pressed: !DIRECTIONS.includes(index) && button.pressed }))
+    face.forEach((raw, index) => {
+        buttons[index] = { pressed: pad.buttons[raw]?.pressed ?? false }
+    })
+
+    const [leftX = 0, leftY = 0, rightX = 0, rightY = 0] = pad.axes
+    const axes = pad.styleSet === JOY_CON_LEFT ? [leftY, -leftX] : [-rightY, rightX]
+    return { index: pad.index, buttons, axes }
+}
+
+function readSwitchPads(): (Pad | null)[] {
+    return (navigator.getGamepads() as unknown as (NxGamepad | null)[]).map((pad) => (pad ? sideways(pad) : null))
+}
+
 /**
  * Touches reach the game in handheld mode only, keys from a USB keyboard if
  * one is plugged in, and the pad through the Gamepad API, which `Input` polls.
  */
 export function bindSwitchInput(input: Input, scale: number): void {
     input.controls = SWITCH_CONTROLS
+    input.readPads = readSwitchPads
 
     // nx.js quits the app on `+` unless the event is cancelled, which looks
     // exactly like a crash. Here it is the pause button; home is how you leave.
